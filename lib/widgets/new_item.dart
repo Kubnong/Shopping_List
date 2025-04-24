@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shopping_list/data/categories.dart';
 import 'package:shopping_list/models/category.dart';
+import 'package:http/http.dart' as http;
 import 'package:shopping_list/models/grocery_item.dart';
 
 class NewItem extends StatefulWidget {
@@ -17,16 +19,44 @@ class _NewItemState extends State<NewItem> {
   var _enteredName = '';
   var _enteredQuantity = 1;
   var _selectedCategory = categories[Categories.vegetables]!;
+  var _isSending = false;
 
-  void _saveItem() {
+  void _saveItem() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
+      setState(() {
+        _isSending = true;
+      });
+      final url = Uri.https(
+        'flutter-shopping-1a2d1-default-rtdb.firebaseio.com',
+        'shopping_list.json',
+      );
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(
+          {
+            'name': _enteredName,
+            'quantity': _enteredQuantity,
+            'category': _selectedCategory.title,
+          },
+        ),
+      );
+
+      final Map<String, dynamic> resData = json.decode(response.body);
+
+      if (!context.mounted) {
+        return;
+      }
+
       Navigator.of(context).pop(
         GroceryItem(
-          id: DateTime.now().toString(),
+          id: resData['name'],
           name: _enteredName,
           quantity: _enteredQuantity,
-          category: _selectedCategory
+          category: _selectedCategory,
         ),
       );
     }
@@ -36,7 +66,7 @@ class _NewItemState extends State<NewItem> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add a new item'),
+        title: const Text('Add Item'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(12),
@@ -46,7 +76,14 @@ class _NewItemState extends State<NewItem> {
             children: [
               TextFormField(
                 maxLength: 50,
-                decoration: const InputDecoration(label: Text('Name')),
+                decoration: const InputDecoration(
+                  label: Text(
+                    'Name',
+                    style: TextStyle(color: Color.fromARGB(255, 80, 80, 80)),
+                  ),
+                  counterStyle:
+                      TextStyle(color: Color.fromARGB(255, 80, 80, 80)),
+                ),
                 validator: (value) {
                   if (value == null ||
                       value.isEmpty ||
@@ -66,7 +103,9 @@ class _NewItemState extends State<NewItem> {
                   Expanded(
                     child: TextFormField(
                       decoration: const InputDecoration(
-                        label: Text('Quantity'),
+                        label: Text('Quantity',
+                            style: TextStyle(
+                                color: Color.fromARGB(255, 80, 80, 80))),
                       ),
                       keyboardType: TextInputType.number,
                       initialValue: _enteredQuantity.toString(),
@@ -116,12 +155,28 @@ class _NewItemState extends State<NewItem> {
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 TextButton(
-                    onPressed: () {
-                      _formKey.currentState!.reset();
-                    },
-                    child: const Text('Reset')),
+                    onPressed: _isSending
+                        ? null
+                        : () {
+                            _formKey.currentState!.reset();
+                          },
+                    child: const Text('Reset',style: TextStyle(color: Color.fromARGB(255, 80, 80, 80)))),
                 ElevatedButton(
-                    onPressed: _saveItem, child: const Text('Add Item')),
+                  onPressed: _isSending ? null : _saveItem,
+                      style: ButtonStyle(
+                        backgroundColor: WidgetStateProperty.all(const Color.fromARGB(255, 25, 200, 107)),
+                      ),
+                  child: _isSending
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(),
+                      )
+                    : const Text(
+                        'Add Item',
+                        style: TextStyle(color:Color.fromARGB(255, 255, 255, 255)),
+                      ),
+                ),
               ])
             ],
           ),
